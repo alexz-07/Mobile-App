@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Pages/auth_page.dart';
 import 'package:mobile_app_2/Pages/course_page.dart';
 import 'package:mobile_app_2/Pages/interactive_page.dart';
+import 'package:mobile_app_2/Pages/profile_page.dart';
 import '../Components/my_action_card.dart';
 import '../Services/firestore_service.dart';
 
@@ -220,6 +221,22 @@ class _HomePageState extends State<HomePage> {
                 transitionDuration: const Duration(milliseconds: 200),
               ),
             );
+          } else if (index == 3){
+            Navigator.pushReplacement(
+              context,
+              PageRouteBuilder(
+                pageBuilder:
+                    (context, animation, secondaryAnimation) =>
+                const ProfilePage(),
+                transitionsBuilder: (context,
+                    animation,
+                    secondaryAnimation,
+                    child,) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+                transitionDuration: const Duration(milliseconds: 200),
+              ),
+            );
           }
         },
         items: const[
@@ -233,6 +250,10 @@ class _HomePageState extends State<HomePage> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.workspace_premium),
+            label: 'Interactive',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
             label: 'Interactive',
           ),
       ]),
