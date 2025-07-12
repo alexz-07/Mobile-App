@@ -221,7 +221,7 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
               )
             ),
           ),
-          backgroundColor: Colors.blue[100],
+          backgroundColor: Colors.blue[200],
         )
       );
     } catch(e) {
