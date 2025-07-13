@@ -26,19 +26,18 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Map<String, dynamic>? _userData;
 
-  List<String> _selectedCognitiveLevel = [];
+  List<String> _selectedSupportNeeds = [];
   List<String> _selectedLearningStyle = [];
 
-  final List<String> _cognitiveLevels = [
-    'Level 1: Requiring Support',
-    'Level 2: Requiring Substantial Support',
-    'Level 3: Requiring Very Substantial Support'
+  final List<String> _supportNeeds= [
+    "Focus – I stay engaged when activities are short, fun, and move at a comfortable pace",
+    "Emotion – I feel better when the voice or text is kind, calm, and gives me time to think",
+    "Step-by-Step – I learn best when things are in a pattern or order",
   ];
 
   final List<String> _learningStyles = [
-    'Visual Learner (Pictures, Diagrams, Videos)',
-    'Auditory (Sounds, Verbal Instructions)',
-    'Reading/Writing (Text, Books)',
+    "Visual – I like to learn with pictures",
+    "Story-Based – I like learning when it's part of a story or adventure",
   ];
 
   @override
@@ -63,7 +62,7 @@ class _ProfilePageState extends State<ProfilePage> {
           _userData = doc.data();
           _nameController.text = _userData!['name']?? '';
           _interestsController.text = _userData!['interests']?? '';
-          _selectedCognitiveLevel = List<String>.from(_userData!['cognitiveLevels']?? []);
+          _selectedSupportNeeds= List<String>.from(_userData!['supportNeeds']?? []);
           _selectedLearningStyle = List<String>.from(_userData!['learningStyles']?? []);
         }
       } catch(e) {
@@ -94,7 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
     await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
       'learningStyles': _selectedLearningStyle,
-      'cognitiveLevel': _selectedCognitiveLevel,
+      'supportNeeds': _selectedSupportNeeds,
     });
   }
 
@@ -240,7 +239,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         decoration: const InputDecoration(
                             labelText: 'Age',
                             prefixIcon: Icon(
-                                Icons.person_outline
+                                Icons.numbers_rounded
                             )
                         ),
                         keyboardType: TextInputType.number,
@@ -260,7 +259,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         decoration: const InputDecoration(
                             labelText: 'Change Password',
                             prefixIcon: Icon(
-                                Icons.person_outline
+                                Icons.password_rounded
                             )
                         ),
                         obscureText: true,
@@ -279,7 +278,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         decoration: const InputDecoration(
                             labelText: 'Confirm Change Password',
                             prefixIcon: Icon(
-                                Icons.person_outline
+                                Icons.password_rounded
                             )
                         ),
                         obscureText: true,
@@ -299,7 +298,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         decoration: const InputDecoration(
                           labelText: 'Interests',
                           prefixIcon: Icon(
-                              Icons.sports_volleyball
+                              Icons.interests
                           ),
                           hintText: 'Please Give a List of Your Interests'
                         ),
@@ -308,7 +307,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         height: 24,
                       ),
                       Text(
-                        'Cognitive Levels',
+                        'Support Needs',
                         style: GoogleFonts.roboto(
                           textStyle: TextStyle(
                             fontSize: 30,
@@ -320,7 +319,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         height: 8
                       ),
                       Text(
-                        'Select 1 or More Levels that Best Describes Your Abilities',
+                        'Select 1 or More Levels that Best Describes Your Needs',
                         style: GoogleFonts.roboto(
                           textStyle: TextStyle(
                               fontSize: 20,
@@ -330,22 +329,22 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(
                         height: 12
                       ),
-                      ...(_cognitiveLevels.map((level) => CheckboxListTile(
+                      ...(_supportNeeds.map((need) => CheckboxListTile(
                         title: Text(
-                          level,
+                          need,
                           style: GoogleFonts.roboto(
                             textStyle: TextStyle(
                               fontSize: 20
                             )
                           ),
                         ),
-                        value: _selectedCognitiveLevel.contains(level),
+                        value: _selectedSupportNeeds.contains(need),
                         onChanged: (bool? value) {
                           setState(() {
                             if (value == true) {
-                              _selectedCognitiveLevel.add(level);
+                              _selectedSupportNeeds.add(need);
                             } else {
-                              _selectedCognitiveLevel.remove(level);
+                              _selectedSupportNeeds.remove(need);
                             }
                           });
                         },
@@ -378,22 +377,22 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(
                           height: 12
                       ),
-                      ...(_learningStyles.map((level) => CheckboxListTile(
+                      ...(_learningStyles.map((style) => CheckboxListTile(
                         title: Text(
-                          level,
+                          style,
                           style: GoogleFonts.roboto(
                               textStyle: TextStyle(
                                   fontSize: 20
                               )
                           ),
                         ),
-                        value: _selectedLearningStyle.contains(level),
+                        value: _selectedLearningStyle.contains(style),
                         onChanged: (bool? value) {
                           setState(() {
                             if (value == true) {
-                              _selectedLearningStyle.add(level);
+                              _selectedLearningStyle.add(style);
                             } else {
-                              _selectedLearningStyle.remove(level);
+                              _selectedLearningStyle.remove(style);
                             }
                           });
                         },
