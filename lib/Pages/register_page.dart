@@ -31,7 +31,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try{
       if (passwordController.text != confirmPasswordController.text) {
-        showErrorMsg("Password does not match/");
+        showErrorMsg("Password does not match.");
         return;
       }
       UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
