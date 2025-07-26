@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Data/lesson_map.dart';
 import 'package:mobile_app_2/Pages/detailLearning_page.dart';
+import 'package:mobile_app_2/Pages/profile_page.dart';
 import '../Services/firestore_service.dart';
+import 'interactive_page.dart';
 
 
 class CoursePage extends StatefulWidget {
@@ -182,6 +184,81 @@ class _CoursePageState extends State<CoursePage> {
           ],
         )
       ),
+      bottomNavigationBar: BottomNavigationBar(
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.purple,
+          currentIndex: 0,
+          onTap: (index) {
+            if (index == 0) {
+
+            } else if (index == 1) {
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder:
+                      (context, animation, secondaryAnimation) =>
+                  const CoursePage(),
+                  transitionsBuilder: (context,
+                      animation,
+                      secondaryAnimation,
+                      child,) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  transitionDuration: const Duration(milliseconds: 200),
+                ),
+              );
+            } else if (index == 2){
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder:
+                      (context, animation, secondaryAnimation) =>
+                  const InteractivePage(),
+                  transitionsBuilder: (context,
+                      animation,
+                      secondaryAnimation,
+                      child,) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  transitionDuration: const Duration(milliseconds: 200),
+                ),
+              );
+            } else if (index == 3){
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder:
+                      (context, animation, secondaryAnimation) =>
+                  const ProfilePage(),
+                  transitionsBuilder: (context,
+                      animation,
+                      secondaryAnimation,
+                      child,) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  transitionDuration: const Duration(milliseconds: 200),
+                ),
+              );
+            }
+          },
+          items: const[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart),
+              label: 'Course',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.workspace_premium),
+              label: 'Interactive',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person),
+              label: 'Interactive',
+            ),
+          ]),
     );
   }
 }

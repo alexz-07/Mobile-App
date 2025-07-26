@@ -1,9 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Components/my_button.dart';
+import 'package:mobile_app_2/Pages/login_page.dart';
+
+import 'course_page.dart';
+import 'interactive_page.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -17,11 +22,9 @@ class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _ageController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
   final _interestsController = TextEditingController();
 
-  bool _isEditing = true;
+  bool _isEditing = false;
   bool _isLoading = false;
 
   Map<String, dynamic>? _userData;
@@ -43,17 +46,18 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _LoadUserData();
+    _loadUserData();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _ageController.dispose();
     _interestsController.dispose();
     super.dispose();
   }
 
-  Future<void> _LoadUserData() async{
+  Future<void> _loadUserData() async{
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
@@ -61,6 +65,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (doc.exists) {
           _userData = doc.data();
           _nameController.text = _userData!['name']?? '';
+          _ageController.text = (_userData!['age']?? '').toString();
           _interestsController.text = _userData!['interests']?? '';
           _selectedSupportNeeds= List<String>.from(_userData!['supportNeeds']?? []);
           _selectedLearningStyle = List<String>.from(_userData!['learningStyles']?? []);
@@ -73,28 +78,135 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void saveUserChanges() async{
-    if (_passwordController.text != _confirmPasswordController.text) {
-      showErrorMsg("Password does not match/");
-      return;
-    }
-    final String name = _nameController.text.trim();
-    final int? age = int.tryParse(_ageController.text.trim());
-    final user = await FirebaseAuth.instance.currentUser;
-    if (name != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-        'name': name,
-      });
-    }
-    if (age != null) {
-      await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-        'age': age,
-      });
-    }
-    await FirebaseFirestore.instance.collection('users').doc(user!.uid).update({
-      'learningStyles': _selectedLearningStyle,
-      'supportNeeds': _selectedSupportNeeds,
+  Future<void> _saveUserChanges() async{
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _isLoading = true;
     });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null){
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'name': _nameController.text.trim(),
+          'age': int.tryParse(_ageController.text.trim()),
+          'interests': _interestsController.text.trim(),
+          'learningStyles': _selectedLearningStyle,
+          'supportNeeds': _selectedSupportNeeds,
+          'updatedAt': FieldValue.serverTimestamp()
+        });
+        setState(() => _isEditing = false);
+        await _loadUserData();
+      }
+    } on FirebaseException catch(e) {
+      showErrorMsg(e.code);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _logOut() async{
+    final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+            title: Text(
+              'Log Out',
+              style: GoogleFonts.roboto(),
+            ),
+            content: Text(
+              'Are You Sure You Want to Log Out?',
+              style: GoogleFonts.roboto(),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context,false),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.roboto(),
+                  )
+              ),
+              TextButton(
+                  onPressed: () => Navigator.pop(context,true),
+                  child: Text(
+                    'Log Out',
+                    style: GoogleFonts.roboto(),
+                  )
+              )
+            ]
+        )
+    );
+    if (confirm == true) {
+      try {
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false,
+          );
+        }
+      } on FirebaseAuthException catch(e) {
+        showErrorMsg(e.code);
+      }
+    }
+  }
+
+  Future<void> _deleteAccount() async{
+    final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+            title: Text(
+              'Delete Account',
+              style: GoogleFonts.roboto(),
+            ),
+            content: Text(
+              'Are You Sure You Want to Delete Your Account? All Data will be Permanently Lost.',
+              style: GoogleFonts.roboto(),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context,false),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.roboto(),
+                  )
+              ),
+              ElevatedButton(
+                  onPressed: () => Navigator.pop(context,true),
+                  child: Text(
+                    'Log Out',
+                    style: GoogleFonts.roboto(),
+                  )
+              )
+            ]
+        )
+    );
+    if (confirm == true) {
+      setState(() {
+        _isLoading = true;
+      });
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+          await user.delete();
+        }
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false,
+          );
+        }
+      } on FirebaseAuthException catch(e) {
+        showErrorMsg(e.code);
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void showErrorMsg(String message){
@@ -131,10 +243,14 @@ class _ProfilePageState extends State<ProfilePage> {
             )
         ),
         actions: [
-          IconButton(
-            onPressed: (){},
+          if (!_isEditing) IconButton(
+            onPressed: () {
+              setState(() {
+                _isEditing = true;
+              });
+            },
             icon: const Icon(
-              Icons.edit
+                Icons.edit
             ),
           )
         ],
@@ -255,44 +371,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         height: 24,
                       ),
                       TextFormField(
-                        controller: _passwordController,
-                        decoration: const InputDecoration(
-                            labelText: 'Change Password',
-                            prefixIcon: Icon(
-                                Icons.password_rounded
-                            )
-                        ),
-                        obscureText: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Change Your Password';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(
-                        height: 24,
-                      ),
-                      TextFormField(
-                        controller: _confirmPasswordController,
-                        decoration: const InputDecoration(
-                            labelText: 'Confirm Change Password',
-                            prefixIcon: Icon(
-                                Icons.password_rounded
-                            )
-                        ),
-                        obscureText: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Repeat Your Password';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(
-                        height: 24,
-                      ),
-                      TextFormField(
                         controller: _interestsController,
                         maxLines: 3,
                         decoration: const InputDecoration(
@@ -402,19 +480,217 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(
                         height: 24,
                       ),
-                      MyButton(
-                        text: 'Save Changes',
-                        onTap: () {
-                          saveUserChanges();
-                        }
-                      )
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => setState(() => _isEditing = false),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _saveUserChanges,
+                              child: const Text('Save'),
+                            ),
+                          ),
+                        ],
+                      ),
                     ]
                   )
                 )
               ]
+              else...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: Icon(Icons.person),
+                          title: Text(
+                            'Full Name',
+                            style: GoogleFonts.roboto()
+                          ),
+                          subtitle: Text(
+                            _userData?['name']?? 'Not Set',
+                            style: GoogleFonts.roboto(),
+                          ),
+                        ),
+                        const Divider(),
+                        ListTile(
+                          leading: Icon(Icons.numbers_rounded),
+                          title: Text(
+                              'Age',
+                              style: GoogleFonts.roboto()
+                          ),
+                          subtitle: Text(
+                            (_userData?['age']?? 'Not Set').toString(),
+                            style: GoogleFonts.roboto(),
+                          ),
+                        ),
+                        const Divider(),
+                        ListTile(
+                          leading: Icon(Icons.interests),
+                          title: Text(
+                              'Interests',
+                              style: GoogleFonts.roboto()
+                          ),
+                          subtitle: Text(
+                            _userData?['interests']?? 'Not Set',
+                            style: GoogleFonts.roboto(),
+                          ),
+                        ),
+                        const Divider(),
+                        ListTile(
+                          leading: Icon(Icons.draw),
+                          title: Text(
+                              'Learning Style',
+                              style: GoogleFonts.roboto()
+                          ),
+                          subtitle: Text(
+                            _selectedLearningStyle.isEmpty? 'Not Set': _selectedLearningStyle.join(', '),
+                            style: GoogleFonts.roboto(),
+                          ),
+                        ),
+                        const Divider(),
+                        ListTile(
+                          leading: Icon(Icons.support),
+                          title: Text(
+                              'Support Needs',
+                              style: GoogleFonts.roboto()
+                          ),
+                          subtitle: Text(
+                            _selectedSupportNeeds.isEmpty? 'Not Set': _selectedSupportNeeds.join(', '),
+                            style: GoogleFonts.roboto(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              ],
+              const SizedBox(
+                height: 30,
+              ),
+              if (!_isEditing)...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _logOut,
+                    style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 16)
+                    ),
+                    label: Text(
+                      'Log Out',
+                      style: GoogleFonts.roboto(),
+                    )
+                  ),
+                ),
+                SizedBox(
+                  height: 16
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _deleteAccount,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red[500],
+                      padding: EdgeInsets.symmetric(vertical: 16)
+                    ),
+                    label: Text(
+                      'Delete Account',
+                      style: GoogleFonts.roboto(
+                        color: Colors.white
+                      ),
+                    ),
+                    icon: Icon(
+                      Icons.delete,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              ]
             ],
           ),
-      )
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.purple,
+          currentIndex: 0,
+          onTap: (index) {
+            if (index == 0) {
+
+            } else if (index == 1) {
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder:
+                      (context, animation, secondaryAnimation) =>
+                  const CoursePage(),
+                  transitionsBuilder: (context,
+                      animation,
+                      secondaryAnimation,
+                      child,) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  transitionDuration: const Duration(milliseconds: 200),
+                ),
+              );
+            } else if (index == 2){
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder:
+                      (context, animation, secondaryAnimation) =>
+                  const InteractivePage(),
+                  transitionsBuilder: (context,
+                      animation,
+                      secondaryAnimation,
+                      child,) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  transitionDuration: const Duration(milliseconds: 200),
+                ),
+              );
+            } else if (index == 3){
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder:
+                      (context, animation, secondaryAnimation) =>
+                  const ProfilePage(),
+                  transitionsBuilder: (context,
+                      animation,
+                      secondaryAnimation,
+                      child,) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  transitionDuration: const Duration(milliseconds: 200),
+                ),
+              );
+            }
+          },
+          items: const[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart),
+              label: 'Course',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.workspace_premium),
+              label: 'Interactive',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person),
+              label: 'Interactive',
+            ),
+          ]),
     );
   }
 }
