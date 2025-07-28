@@ -20,18 +20,55 @@ class _PostBuilderPageState extends State<PostBuilderPage> {
   final _contentController = TextEditingController();
   final _courseController = TextEditingController();
 
-  Future<void> _uploadPost(title, content, category) async{
-    final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  Map<String, dynamic>? _userData;
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    _courseController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await _firestore.collection('users').add({
-        'uid': user.uid,
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (!mounted) return;
+      if (doc.exists) {
+        setState(() => _userData = doc.data());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading profile: $e')),
+      );
+    }
+  }
+
+  Future<void> _uploadPost() async{
+    final title = _titleController.text.trim();
+    final content = _contentController.text.trim();
+    final category = _courseController.text.trim();
+    final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+    if (_userData != null) {
+      print('upload check');
+      await _firestore.collection('posts').add({
+        'uid': _userData!['uid'],
         'title': title,
         'content': content,
         'category': category,
         'likes': 0,
         'comments': 0,
-        'userName': (await _firestore.collection('users').doc(user.uid).get()).data()?['name'],
+        'userName': _userData!['name'],
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
