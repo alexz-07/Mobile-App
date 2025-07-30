@@ -67,6 +67,7 @@ class _PostBuilderPageState extends State<PostBuilderPage> {
         'content': content,
         'category': category,
         'likes': 0,
+        'likedBy': [],
         'comments': 0,
         'userName': _userData!['name'],
         'createdAt': FieldValue.serverTimestamp(),

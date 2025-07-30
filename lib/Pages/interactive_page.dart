@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Pages/postBuilder_page.dart';
@@ -39,20 +40,55 @@ class _InteractivePageState extends State<InteractivePage> {
     }
   }
 
-  Future<void> _likePost(post_id,likes) async {
-    await FirebaseFirestore.instance.collection('posts').doc(post_id).update({
-      'likes': likes + 1,
-    });
+  Future<void> _likePost(post_id,likedBy) async {
+    final uid = _userData?['uid'];
+    if (uid == null) return;
+
+    if (likedBy.contains(_userData?['uid'])) {
+      await FirebaseFirestore.instance.collection('posts').doc(post_id).update({
+        'likes': FieldValue.increment(-1),
+        'likedBy': FieldValue.arrayRemove([uid])
+      });
+    } else {
+      await FirebaseFirestore.instance.collection('posts').doc(post_id).update({
+        'likes': FieldValue.increment(1),
+        'likedBy': FieldValue.arrayUnion([uid])
+      });
+    }
+  }
+  
+  Future<void> _addComment(post_id,content) async {
+    final uid = _userData?['uid'];
+    final userName = _userData?['name'];
+    if (uid == null) return;
+    if (content != '') {
+      await FirebaseFirestore.instance.collection('posts').doc(post_id)
+          .collection('comments').doc().set({
+        'content': content,
+        'uid': uid,
+        'userName': userName,
+        'createdAt': FieldValue.serverTimestamp()
+      });
+    }
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _postsStream() {
     final lastWeek = Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 7)));
     // Ensure you have an index for createdAt if you add more filters.
     return FirebaseFirestore.instance
-        .collection('posts')
-        .where('createdAt', isGreaterThan: lastWeek)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+      .collection('posts')
+      .where('createdAt', isGreaterThan: lastWeek)
+      .orderBy('createdAt', descending: true)
+      .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _commentsStream(post_id) {
+    return FirebaseFirestore.instance
+      .collection('posts')
+      .doc(post_id)
+      .collection('comments')
+      .orderBy('createdAt', descending: true)
+      .snapshots();
   }
 
   @override
@@ -100,7 +136,6 @@ class _InteractivePageState extends State<InteractivePage> {
             ),
             const SizedBox(height: 24),
 
-            // ---- Posts list ----
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _postsStream(),
               builder: (context, snapshot) {
@@ -126,6 +161,18 @@ class _InteractivePageState extends State<InteractivePage> {
                     final likes = data['likes'] ?? 0;
                     final userName = (data['userName'] ?? '').toString();
                     final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                    final likedBy = (data['likedBy'] is List) ?
+                        List<String>.from(data['likedBy']) :
+                        <String>[];
+                    final _commentController = TextEditingController();
+                    final firstComment = FirebaseFirestore.instance.collection('posts')
+                      .doc(doc.id)
+                      .collection('comments')
+                      .orderBy('createdAt', descending: true)
+                      .limit(1)
+                      .get();
+                    final commentData = firstComment.data();
+                    final commentContent = (commentData['content'] ?? '').toString();
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 16),
@@ -147,12 +194,41 @@ class _InteractivePageState extends State<InteractivePage> {
                             Row(
                               children: [
                                 IconButton(
-                                  onPressed: () => _likePost(doc.id,likes),
-                                  icon: Icon(Icons.thumb_up_sharp)
+                                  onPressed: () => _likePost(doc.id,likedBy),
+                                  icon: Icon(
+                                    Icons.thumb_up_sharp,
+                                    color: likedBy.contains(_userData?['uid']) ? Colors.blue: Colors.grey,
+                                  )
                                 ),
-                                Text(likes.toString())
+                                Text(likes.toString()),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    style: TextStyle(fontSize:10),
+                                    controller: _commentController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Comment',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Add a Comment!';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    _addComment(doc.id, _commentController.text.trim());
+                                    _commentController.clear();
+                                  },
+                                  icon: Icon(
+                                    Icons.send,
+                                    color: Colors.blue
+                                  )
+                                )
                               ],
-                            )
+                            ),
                           ],
                         ),
                       ),
