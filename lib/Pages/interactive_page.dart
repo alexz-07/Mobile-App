@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app_2/Pages/CommentsPage.dart';
 import 'package:mobile_app_2/Pages/postBuilder_page.dart';
 import 'package:mobile_app_2/Pages/profile_page.dart';
 import 'course_page.dart';
@@ -56,21 +57,6 @@ class _InteractivePageState extends State<InteractivePage> {
       });
     }
   }
-  
-  Future<void> _addComment(post_id,content) async {
-    final uid = _userData?['uid'];
-    final userName = _userData?['name'];
-    if (uid == null) return;
-    if (content != '') {
-      await FirebaseFirestore.instance.collection('posts').doc(post_id)
-          .collection('comments').doc().set({
-        'content': content,
-        'uid': uid,
-        'userName': userName,
-        'createdAt': FieldValue.serverTimestamp()
-      });
-    }
-  }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _postsStream() {
     final lastWeek = Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 7)));
@@ -78,15 +64,6 @@ class _InteractivePageState extends State<InteractivePage> {
     return FirebaseFirestore.instance
       .collection('posts')
       .where('createdAt', isGreaterThan: lastWeek)
-      .orderBy('createdAt', descending: true)
-      .snapshots();
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _commentsStream(post_id) {
-    return FirebaseFirestore.instance
-      .collection('posts')
-      .doc(post_id)
-      .collection('comments')
       .orderBy('createdAt', descending: true)
       .snapshots();
   }
@@ -135,7 +112,6 @@ class _InteractivePageState extends State<InteractivePage> {
               ),
             ),
             const SizedBox(height: 24),
-
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _postsStream(),
               builder: (context, snapshot) {
@@ -159,20 +135,12 @@ class _InteractivePageState extends State<InteractivePage> {
                     final title = (data['title'] ?? '').toString();
                     final content = (data['content'] ?? '').toString();
                     final likes = data['likes'] ?? 0;
+                    final comments = data['comments'] ?? 0;
                     final userName = (data['userName'] ?? '').toString();
                     final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
                     final likedBy = (data['likedBy'] is List) ?
                         List<String>.from(data['likedBy']) :
                         <String>[];
-                    final _commentController = TextEditingController();
-                    final firstComment = FirebaseFirestore.instance.collection('posts')
-                      .doc(doc.id)
-                      .collection('comments')
-                      .orderBy('createdAt', descending: true)
-                      .limit(1)
-                      .get();
-                    final commentData = firstComment.data();
-                    final commentContent = (commentData['content'] ?? '').toString();
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 16),
@@ -202,31 +170,19 @@ class _InteractivePageState extends State<InteractivePage> {
                                 ),
                                 Text(likes.toString()),
                                 const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    style: TextStyle(fontSize:10),
-                                    controller: _commentController,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Comment',
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Add a Comment!';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
                                 IconButton(
                                   onPressed: () {
-                                    _addComment(doc.id, _commentController.text.trim());
-                                    _commentController.clear();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => CommentsPage(post_id: doc.id, post_data: data)),
+                                    );
                                   },
                                   icon: Icon(
-                                    Icons.send,
+                                    Icons.comment,
                                     color: Colors.blue
                                   )
-                                )
+                                ),
+                                Text(comments.toString()),
                               ],
                             ),
                           ],
