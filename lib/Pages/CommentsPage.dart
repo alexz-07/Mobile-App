@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Pages/postBuilder_page.dart';
 import 'package:mobile_app_2/Pages/profile_page.dart';
 import 'course_page.dart';
+// If you want fancy timestamp formatting, keep your package and use it in the UI.
+import 'package:intl/intl.dart';
 
 class CommentsPage extends StatefulWidget {
   final String post_id;
@@ -14,17 +14,16 @@ class CommentsPage extends StatefulWidget {
   const CommentsPage({
     Key? key,
     required this.post_id,
-    required this.post_data
-  }) : super (key: key);
+    required this.post_data,
+  }) : super(key: key);
 
   @override
   State<CommentsPage> createState() => _CommentsPageState();
 }
 
-
 class _CommentsPageState extends State<CommentsPage> {
   Map<String, dynamic>? _userData;
-  final _commentController = TextEditingController();
+  final TextEditingController _commentController = TextEditingController();
 
   @override
   void initState() {
@@ -32,11 +31,18 @@ class _CommentsPageState extends State<CommentsPage> {
     _loadUserData();
   }
 
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc =
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       if (!mounted) return;
       if (doc.exists) {
         setState(() => _userData = doc.data());
@@ -49,216 +55,254 @@ class _CommentsPageState extends State<CommentsPage> {
     }
   }
 
-  Future<void> _likePost(post_id,likedBy) async {
-    final uid = _userData?['uid'];
-    if (uid == null) return;
-
-    if (likedBy.contains(_userData?['uid'])) {
-      await FirebaseFirestore.instance.collection('posts').doc(post_id).update({
-        'likes': FieldValue.increment(-1),
-        'likedBy': FieldValue.arrayRemove([uid])
-      });
-    } else {
-      await FirebaseFirestore.instance.collection('posts').doc(post_id).update({
-        'likes': FieldValue.increment(1),
-        'likedBy': FieldValue.arrayUnion([uid])
-      });
-    }
+  // ---------- Firestore streams ----------
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _postStream(String id) {
+    return FirebaseFirestore.instance.collection('posts').doc(id).snapshots();
   }
 
-  Future<void> _likeComment(post_id,comment_id,likedBy) async {
-    final uid = _userData?['uid'];
-    if (uid == null) return;
-
-    if (likedBy.contains(_userData?['uid'])) {
-      await FirebaseFirestore.instance.collection('posts')
-        .doc(post_id)
-        .collection('comments')
-        .doc(comment_id)
-        .update({
-          'likes': FieldValue.increment(-1),
-          'likedBy': FieldValue.arrayRemove([uid])
-      });
-    } else {
-      await FirebaseFirestore.instance.collection('posts')
-        .doc(post_id)
-        .collection('comments')
-        .doc(comment_id)
-        .update({
-          'likes': FieldValue.increment(1),
-          'likedBy': FieldValue.arrayUnion([uid])
-      });
-    }
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _commentsStream(post_id) {
-    // final lastWeek = Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 7)));
-    print(post_id);
+  Stream<QuerySnapshot<Map<String, dynamic>>> _commentsStream(String postId) {
     return FirebaseFirestore.instance
         .collection('posts')
-        .doc(post_id)
+        .doc(postId)
         .collection('comments')
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
-  Future<void> _addComment(post_id,content) async {
+  // ---------- Actions ----------
+  Future<void> _toggleLike({
+    required DocumentReference<Map<String, dynamic>> ref,
+  }) async {
+    final uid = _userData?['uid'];
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final data = (snap.data() ?? {});
+      final likedBy = List<String>.from(data['likedBy'] ?? []);
+      final isLiked = likedBy.contains(uid);
+
+      tx.update(ref, {
+        'likes': FieldValue.increment(isLiked ? -1 : 1),
+        'likedBy':
+        isLiked ? FieldValue.arrayRemove([uid]) : FieldValue.arrayUnion([uid]),
+      });
+    });
+  }
+
+  Future<void> _addComment({
+    required String postId,
+    required String content,
+  }) async {
     final uid = _userData?['uid'];
     final userName = _userData?['name'];
     if (uid == null) return;
-    if (content != '') {
-      await FirebaseFirestore.instance.collection('posts').doc(post_id)
-          .collection('comments').doc().set({
-        'content': content,
+    if (content.trim().isEmpty) return;
+
+    final postRef = FirebaseFirestore.instance.collection('posts').doc(postId);
+    final commentRef = postRef.collection('comments').doc();
+
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      tx.set(commentRef, {
+        'content': content.trim(),
         'uid': uid,
         'userName': userName,
         'createdAt': FieldValue.serverTimestamp(),
         'likes': 0,
-        'likedBy': []
+        'likedBy': <String>[],
       });
-      await FirebaseFirestore.instance.collection('posts').doc(post_id).update({
-        'comments': FieldValue.increment(1)
+      tx.update(postRef, {
+        'comments': FieldValue.increment(1),
       });
-    }
+    });
   }
 
+  // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
-    final post_id = widget.post_id;
-    final post_title = (widget.post_data['title'] ?? '').toString();
-    final post_content = (widget.post_data['content'] ?? '').toString();
-    final post_likes = widget.post_data['likes'] ?? 0;
-    final post_comments = widget.post_data['comments'] ?? 0;
-    final post_userName = (widget.post_data['userName'] ?? '').toString();
-    final post_createdAt = (widget.post_data['createdAt'] as Timestamp?)?.toDate();
-    final post_likedBy = (widget.post_data['likedBy'] is List) ?
-    List<String>.from(widget.post_data['likedBy']) :
-    <String>[];
+    final postId = widget.post_id;
 
     return Scaffold(
       appBar: AppBar(),
-      body: Column(
-        children: [
-          Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              title: Text(post_title.isEmpty ? '(No title)' : post_title),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(post_content.isEmpty ? '(No content)' : post_content),
-                  if (post_userName.isNotEmpty || post_createdAt != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        '${post_userName.isNotEmpty ? 'by $post_userName · ' : ''}'
-                            '${post_createdAt != null ? post_createdAt.toLocal().toString() : ''}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  Row(
-                    children: [
-                      IconButton(
-                          onPressed: () => _likePost(post_id,post_likedBy),
-                          icon: Icon(
-                            Icons.thumb_up_sharp,
-                            color: post_likedBy.contains(_userData?['uid']) ? Colors.blue: Colors.grey,
-                          )
-                      ),
-                      Text(post_likes.toString()),
-                      const SizedBox(width: 12),
-                      IconButton(
-                          onPressed: () {},
-                          icon: Icon(
-                              Icons.comment,
-                              color: Colors.blue
-                          )
-                      ),
-                      Text(post_comments.toString()),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: StreamBuilder(
-              stream: _commentsStream(post_id),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // --- Post header (reactive) ---
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: _postStream(postId),
+              builder: (context, postSnap) {
+                if (postSnap.hasError) {
+                  return Card(
+                    child: ListTile(title: Text('Error: ${postSnap.error}')),
+                  );
                 }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                if (!postSnap.hasData) {
+                  return const Card(
+                    child: ListTile(title: Text('(Loading post...)')),
+                  );
                 }
-                final docs = snapshot.data!.docs;
-                if (docs.isEmpty) {
-                  return const Text('Be the First To Comment!');
-                }
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    final comment_doc = docs[index];
-                    final comment_data = comment_doc.data();
-                    final comment_title = (comment_data['title'] ?? '').toString();
-                    final comment_content = (comment_data['content'] ?? '').toString();
-                    final comment_likes = comment_data['likes'] ?? 0;
-                    final comment_userName = (comment_data['userName'] ?? '').toString();
-                    final comment_createdAt = (comment_data['createdAt'] as Timestamp?)?.toDate();
-                    final comment_likedBy = (comment_data['likedBy'] is List) ?
-                    List<String>.from(comment_data['likedBy']) :
-                    <String>[];
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      child: ListTile(
-                        title: Text(comment_title.isEmpty ? '(No title)' : comment_title),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(comment_content.isEmpty ? '(No content)' : comment_content),
-                            if (comment_userName.isNotEmpty || comment_createdAt != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  '${comment_userName.isNotEmpty ? 'by $comment_userName · ' : ''}'
-                                      '${comment_createdAt != null ? comment_createdAt.toLocal().toString() : ''}',
+                final data = postSnap.data!.data() ?? {};
+                final postTitle = (data['title'] ?? '').toString();
+                final postContent = (data['content'] ?? '').toString();
+                final postLikes = (data['likes'] ?? 0) as int;
+                final postComments = (data['comments'] ?? 0) as int;
+                final postUserName = (data['userName'] ?? '').toString();
+                final postCreatedAt =
+                (data['createdAt'] as Timestamp?)?.toDate();
+                final likedBy = List<String>.from(data['likedBy'] ?? []);
+                final isLiked = _userData != null &&
+                    likedBy.contains(_userData!['uid']);
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: ListTile(
+                    title: Text(postTitle.isEmpty ? '(No title)' : postTitle),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            postContent.isEmpty ? '(No content)' : postContent),
+                        if (postUserName.isNotEmpty || postCreatedAt != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Column(
+                              children: [
+                                Text(
+                                  '${postUserName.isNotEmpty ? '$postUserName on ' : ''}'
+                                  '${postCreatedAt != null ? DateFormat('MMMM dd, yyyy').format(postCreatedAt.toLocal()) : ''}'
+                                  ' at '
+                                  '${postCreatedAt != null ? DateFormat('hh:mm a').format(postCreatedAt.toLocal()) : ''}'
+                                  ,
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
-                              ),
-                            Row(
-                              children: [
-                                IconButton(
-                                    onPressed: () => _likeComment(
-                                      post_id,
-                                      comment_doc.id,
-                                      comment_likedBy
-                                    ),
-                                    icon: Icon(
-                                      Icons.thumb_up_sharp,
-                                      color: comment_likedBy.contains(_userData?['uid']) ? Colors.blue: Colors.grey,
-                                    )
-                                ),
-                                Text(comment_likes.toString()),
-                                const SizedBox(width: 12),
                               ],
                             ),
+                          ),
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: () => _toggleLike(
+                                ref: FirebaseFirestore.instance
+                                    .collection('posts')
+                                    .doc(postId),
+                              ),
+                              icon: Icon(
+                                Icons.thumb_up_sharp,
+                                color: isLiked ? Colors.blue : Colors.grey,
+                              ),
+                            ),
+                            Text('$postLikes'),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.comment, color: Colors.blue),
+                            const SizedBox(width: 8),
+                            Text('$postComments'),
                           ],
                         ),
-                      ),
-                    );
-                  }
+                      ],
+                    ),
+                  ),
                 );
               },
             ),
-          ),
-          Row(
+
+            // --- Comments (reactive list) ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _commentsStream(postId),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Text('Error: ${snapshot.error}');
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final docs = snapshot.data!.docs;
+                  if (docs.isEmpty) {
+                    return const Text('Be the First To Comment!');
+                  }
+
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final doc = docs[index];
+                      final data = doc.data();
+                      final content = (data['content'] ?? '').toString();
+                      final likes = (data['likes'] ?? 0) as int;
+                      final userName = (data['userName'] ?? '').toString();
+                      final createdAt =
+                      (data['createdAt'] as Timestamp?)?.toDate();
+                      final likedBy =
+                      List<String>.from(data['likedBy'] ?? <String>[]);
+                      final isLiked = _userData != null &&
+                          likedBy.contains(_userData!['uid']);
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        child: ListTile(
+                          title: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              children: [
+                                Text(
+                                  userName.isEmpty ? 'Anonymous' : userName,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  createdAt != null
+                                      ? 'on ${DateFormat('MMMM dd, yyyy').format(createdAt.toLocal())}'
+                                      ' at ${DateFormat('hh:mm a').format(createdAt.toLocal())}'
+                                      : '',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(content.isEmpty ? '(No content)' : content),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () => _toggleLike(
+                                      ref: FirebaseFirestore.instance
+                                          .collection('posts')
+                                          .doc(postId)
+                                          .collection('comments')
+                                          .doc(doc.id),
+                                    ),
+                                    icon: Icon(
+                                      Icons.thumb_up_sharp,
+                                      color: isLiked ? Colors.blue : Colors.grey,
+                                    ),
+                                  ),
+                                  Text('$likes'),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // --- Add comment ---
+            const SizedBox(height: 4),
+            Row(
               children: [
                 Expanded(
                   child: TextFormField(
-                    style: TextStyle(fontSize:10),
                     controller: _commentController,
                     decoration: const InputDecoration(
                       labelText: 'Comment',
@@ -272,23 +316,25 @@ class _CommentsPageState extends State<CommentsPage> {
                   ),
                 ),
                 IconButton(
-                    onPressed: () {
-                      _addComment(post_id, _commentController.text.trim());
-                      _commentController.clear();
-                    },
-                    icon: Icon(
-                        Icons.send,
-                        color: Colors.blue
-                    )
-                )
-              ]
-          )
-        ],
+                  onPressed: () async {
+                    final text = _commentController.text.trim();
+                    if (text.isEmpty) return;
+                    await _addComment(postId: postId, content: text);
+                    _commentController.clear();
+                  },
+                  icon: const Icon(Icons.send, color: Colors.blue),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
+
+      // --- Bottom nav (unchanged) ---
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.purple,
-        currentIndex: 2, // You are on Interactive
+        currentIndex: 2,
         onTap: (index) {
           if (index == 1) {
             Navigator.pushReplacement(
@@ -324,13 +370,3 @@ class _CommentsPageState extends State<CommentsPage> {
     );
   }
 }
-
-// final _commentController = TextEditingController();
-// final firstComment = FirebaseFirestore.instance.collection('posts')
-//     .doc(doc.id)
-//     .collection('comments')
-//     .orderBy('createdAt', descending: true)
-//     .limit(1)
-//     .snapshots();
-// final commentData = firstComment.data();
-// final commentContent = (commentData['content'] ?? '').toString();
