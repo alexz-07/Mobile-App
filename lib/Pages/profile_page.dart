@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Components/my_button.dart';
+import 'package:mobile_app_2/Pages/home_page.dart';
+import 'package:mobile_app_2/Pages/interactive_landing_page.dart';
 import 'package:mobile_app_2/Pages/login_page.dart';
 
 import 'course_page.dart';
@@ -622,7 +624,21 @@ class _ProfilePageState extends State<ProfilePage> {
           currentIndex: 0,
           onTap: (index) {
             if (index == 0) {
-
+              Navigator.pushReplacement(
+                context,
+                PageRouteBuilder(
+                  pageBuilder:
+                      (context, animation, secondaryAnimation) =>
+                  const HomePage(),
+                  transitionsBuilder: (context,
+                      animation,
+                      secondaryAnimation,
+                      child,) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                  transitionDuration: const Duration(milliseconds: 200),
+                ),
+              );
             } else if (index == 1) {
               Navigator.pushReplacement(
                 context,
@@ -645,7 +661,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 PageRouteBuilder(
                   pageBuilder:
                       (context, animation, secondaryAnimation) =>
-                  const InteractivePage(),
+                  const InteractiveLandingPage(),
                   transitionsBuilder: (context,
                       animation,
                       secondaryAnimation,
@@ -656,21 +672,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               );
             } else if (index == 3){
-              Navigator.pushReplacement(
-                context,
-                PageRouteBuilder(
-                  pageBuilder:
-                      (context, animation, secondaryAnimation) =>
-                  const ProfilePage(),
-                  transitionsBuilder: (context,
-                      animation,
-                      secondaryAnimation,
-                      child,) {
-                    return FadeTransition(opacity: animation, child: child);
-                  },
-                  transitionDuration: const Duration(milliseconds: 200),
-                ),
-              );
+
             }
           },
           items: const[

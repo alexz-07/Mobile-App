@@ -14,10 +14,10 @@ class _SplashPageState extends State<SplashPage> {
   @override
   Widget build(BuildContext context) {
     return AnimatedSplashScreen(
-      splash: Lottie.asset('assets/animations/animation.json'),
+      splash: Lottie.asset('Assets/animations/splash.json'),
       nextScreen: AuthPage(),
       splashIconSize: 500,
-      duration: 500,
+      duration: 3000,
       splashTransition: SplashTransition.fadeTransition,
     );
   }

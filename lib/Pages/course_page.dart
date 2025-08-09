@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Data/lesson_map.dart';
 import 'package:mobile_app_2/Pages/detailLearning_page.dart';
+import 'package:mobile_app_2/Pages/home_page.dart';
+import 'package:mobile_app_2/Pages/interactive_landing_page.dart';
 import 'package:mobile_app_2/Pages/profile_page.dart';
 import '../Services/firestore_service.dart';
 import 'interactive_page.dart';
@@ -187,17 +189,15 @@ class _CoursePageState extends State<CoursePage> {
       bottomNavigationBar: BottomNavigationBar(
           selectedItemColor: Colors.blue,
           unselectedItemColor: Colors.purple,
-          currentIndex: 0,
+          currentIndex: 1,
           onTap: (index) {
             if (index == 0) {
-
-            } else if (index == 1) {
               Navigator.pushReplacement(
                 context,
                 PageRouteBuilder(
                   pageBuilder:
                       (context, animation, secondaryAnimation) =>
-                  const CoursePage(),
+                  const HomePage(),
                   transitionsBuilder: (context,
                       animation,
                       secondaryAnimation,
@@ -207,13 +207,15 @@ class _CoursePageState extends State<CoursePage> {
                   transitionDuration: const Duration(milliseconds: 200),
                 ),
               );
+            } else if (index == 1) {
+
             } else if (index == 2){
               Navigator.pushReplacement(
                 context,
                 PageRouteBuilder(
                   pageBuilder:
                       (context, animation, secondaryAnimation) =>
-                  const InteractivePage(),
+                  const InteractiveLandingPage(),
                   transitionsBuilder: (context,
                       animation,
                       secondaryAnimation,

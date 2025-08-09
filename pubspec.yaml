@@ -49,6 +49,7 @@ dependencies:
   markdown_widget: ^2.3.2+8
   intl: ^0.18.1 # Use the latest stable version
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
 
@@ -61,7 +62,10 @@ dev_dependencies:
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
-
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "Assets/icons/appIcon.png"
 # The following section is specific to Flutter packages.
 flutter:
 
@@ -71,8 +75,8 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/
-    - assets/.env
+    - Assets/animations/splash.json
+    - Assets/.env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

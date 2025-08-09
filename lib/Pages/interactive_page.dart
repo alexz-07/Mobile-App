@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile_app_2/Pages/CommentsPage.dart';
 import 'package:mobile_app_2/Pages/postBuilder_page.dart';
 import 'package:mobile_app_2/Pages/profile_page.dart';
@@ -154,8 +155,10 @@ class _InteractivePageState extends State<InteractivePage> {
                               Padding(
                                 padding: const EdgeInsets.only(top: 8),
                                 child: Text(
-                                  '${userName.isNotEmpty ? 'by $userName · ' : ''}'
-                                      '${createdAt != null ? createdAt.toLocal().toString() : ''}',
+                                  '${userName.isNotEmpty ? 'by $userName ' : ''}'
+                                      '${createdAt != null ? 'on ${DateFormat('MMMM dd, yyyy').format(createdAt.toLocal())}'
+                                      ' at ${DateFormat('hh:mm a').format(createdAt.toLocal())}'
+                                      : ''}',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),

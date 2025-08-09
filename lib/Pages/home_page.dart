@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app_2/Pages/auth_page.dart';
 import 'package:mobile_app_2/Pages/course_page.dart';
+import 'package:mobile_app_2/Pages/interactive_landing_page.dart';
 import 'package:mobile_app_2/Pages/interactive_page.dart';
 import 'package:mobile_app_2/Pages/profile_page.dart';
 import '../Components/my_action_card.dart';
 import '../Services/firestore_service.dart';
+
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -145,36 +148,32 @@ class _HomePageState extends State<HomePage> {
                   child: MyActionCard(
                     title: 'Course Design',
                     subtitle: 'Personalized Training',
-                    onTap: (){
+                    onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => CoursePage()),
+                        MaterialPageRoute(builder: (_) => const CoursePage()),
                       );
                     },
-                    icon: Icon(
-                      Icons.book,
-                      color: Colors.pink[300],
-                    size: 45,
-                    ),
-                    color: Colors.pink[100]!,
+                    icon: Icons.book,                 // <-- pass IconData
+                    // Pick ONE of these:
+                    colors: [Colors.pink.shade100, Colors.pink.shade200], // gradient bg
+                    // color: Colors.pink.shade100,                       // solid bg
                   ),
                 ),
                 Expanded(
                   child: MyActionCard(
                     title: 'Interactive Zone',
                     subtitle: 'Fun Activities',
-                    onTap: (){
+                    onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => InteractivePage()),
+                        MaterialPageRoute(builder: (_) => const InteractivePage()),
                       );
                     },
-                    icon: Icon(
-                      Icons.videogame_asset_rounded,
-                      color: Colors.blue[400],
-                      size: 45
-                    ),
-                    color: Colors.blue[100]!,
+                    icon: Icons.videogame_asset_rounded,           // <-- IconData, not Icon()
+                    // pick ONE of these:
+                    colors: [Colors.blue.shade100, Colors.blue.shade200], // gradient
+                    // color: Colors.blue.shade100,                        // solid
                   ),
                 ),
               ],
@@ -211,7 +210,7 @@ class _HomePageState extends State<HomePage> {
               PageRouteBuilder(
                 pageBuilder:
                     (context, animation, secondaryAnimation) =>
-                const InteractivePage(),
+                const InteractiveLandingPage(),
                 transitionsBuilder: (context,
                     animation,
                     secondaryAnimation,
@@ -259,23 +258,4 @@ class _HomePageState extends State<HomePage> {
       ]),
     );
   }
-
-  // Widget _buildCard(String title, {required String title}){
-  //   return Container(
-  //     margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 30.0),
-  //     child: SizedBox(
-  //       width: 300,
-  //       height: 100,
-  //       child: Card(
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(10),
-  //         ),
-  //         elevation: 1.0,
-  //         child: Text(
-  //           'Text of Card'
-  //         )
-  //       )
-  //     )
-  //   );
-  // }
 }
