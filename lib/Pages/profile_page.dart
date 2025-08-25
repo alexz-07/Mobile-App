@@ -59,24 +59,36 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  Future<void> _loadUserData() async{
+  Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-        if (doc.exists) {
-          _userData = doc.data();
-          _nameController.text = _userData!['name']?? '';
-          _ageController.text = (_userData!['age']?? '').toString();
-          _interestsController.text = _userData!['interests']?? '';
-          _selectedSupportNeeds= List<String>.from(_userData!['supportNeeds']?? []);
-          _selectedLearningStyle = List<String>.from(_userData!['learningStyles']?? []);
-        }
-      } catch(e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading profile: $e')),
-        );
+    if (user == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (!mounted) return;
+      if (doc.exists) {
+        final data = doc.data()!;
+
+        setState(() {
+          _userData = data;
+
+          // Text fields
+          _nameController.text =
+              (data['name'] ?? data['fullName'] ?? user.displayName ?? user.email?.split('@').first ?? '').toString();
+          _ageController.text = (data['age'] ?? '').toString();
+          _interestsController.text = (data['interests'] ?? '').toString();
+
+          _selectedSupportNeeds   = List<String>.from(data['supportNeeds']   ?? const <String>[]);
+          _selectedLearningStyle  = List<String>.from(data['learningStyles'] ?? const <String>[]);
+        });
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading profile: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -234,6 +246,18 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    final displayName = (_userData?['name'] ??
+        _userData?['fullName'] ??
+        user?.displayName ??
+        user?.email?.split('@').first ??
+        'User')
+        .toString();
+
+// Use the SAME key everywhere: 'avatarUrl'
+    final avatarUrl = (_userData?['avatarUrl'] as String?) ?? '';
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -272,55 +296,37 @@ class _ProfilePageState extends State<ProfilePage> {
                 // padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10)
-                      ),
-                      padding: EdgeInsets.all(10),
+                    Padding(
+                      padding: const EdgeInsets.all(10),
                       child: CircleAvatar(
                         radius: 50,
-                        child: _userData?['avatarURL'] != null
-                        ? ClipOval(
+                        child: avatarUrl.isNotEmpty
+                            ? ClipOval(
                           child: Image.network(
-                            _userData!['avatarUrl'],
+                            avatarUrl,
                             width: 100,
                             height: 100,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.person,
-                                size: 50,
-                              );
-                            },
+                            errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.person, size: 50),
                           ),
                         )
-                        : Icon(
-                          Icons.person,
-                          size: 50,
-                        ),
+                            : const Icon(Icons.person, size: 50),
                       ),
                     ),
-                    const SizedBox(
-                      height: 16,
-                    ),
+                    const SizedBox(height: 16),
                     Text(
-                      _userData?['name'] ?? 'User',
+                      displayName,
                       style: GoogleFonts.roboto(
-                        textStyle: TextStyle(
-                          fontSize: 30
-                        )
-                      )
+                        textStyle: const TextStyle(fontSize: 30),
+                      ),
                     ),
-                    const SizedBox(
-                      height: 8
-                    ),
+                    const SizedBox(height: 8),
                     Text(
-                        _userData?['role'] ?? 'Role',
-                        style: GoogleFonts.roboto(
-                            textStyle: TextStyle(
-                                fontSize: 30
-                            )
-                        )
+                      (_userData?['role'] ?? 'Role').toString(),
+                      style: GoogleFonts.roboto(
+                        textStyle: const TextStyle(fontSize: 30),
+                      ),
                     ),
                   ],
                 ),

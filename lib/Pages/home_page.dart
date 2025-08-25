@@ -6,6 +6,7 @@ import 'package:mobile_app_2/Pages/course_page.dart';
 import 'package:mobile_app_2/Pages/interactive_landing_page.dart';
 import 'package:mobile_app_2/Pages/interactive_page.dart';
 import 'package:mobile_app_2/Pages/profile_page.dart';
+import 'package:mobile_app_2/Pages/avatars_page.dart';
 import '../Components/my_action_card.dart';
 import '../Services/firestore_service.dart';
 
@@ -177,7 +178,32 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ],
-            )
+            ),
+            // after the first Row(...)
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                Expanded(
+                  child: MyActionCard(
+                    title: 'Avatars',
+                    subtitle: 'Create or update',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AvatarsPage()),
+                      );
+                    },
+                    icon: Icons.face_retouching_natural, // or Icons.face
+                    colors: [Colors.teal.shade300, Colors.teal.shade200],
+                  ),
+                ),
+
+                // keep grid alignment (empty right half)
+                const SizedBox(width: 12),
+                const Expanded(child: SizedBox()),
+              ],
+            ),
           ],
         ),
       ),

@@ -8,7 +8,7 @@ void main() async{
   WidgetsFlutterBinding.ensureInitialized();
 
   dotenv.load(
-    fileName: 'assets/.env'
+    fileName: 'Assets/.env'
   );
 
   await Firebase.initializeApp(

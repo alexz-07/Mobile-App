@@ -31,7 +31,15 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Get help anytime',
         colors: [const Color(0xFFFFB3C7), const Color(0xFFFF8FD6)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const CoursePage()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Ask Questions',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
       _ForumCategory(
@@ -39,7 +47,15 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Show what you built!',
         colors: [const Color(0xFFB3E5FC), const Color(0xFF81D4FA)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const InteractivePage()));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Post Achievements',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
       _ForumCategory(
@@ -47,7 +63,15 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Links, pics & vids',
         colors: [const Color(0xFFC8E6C9), const Color(0xFFA5D6A7)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const _ComingSoonPage(title: 'Share Resources')));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Share Resources',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
       _ForumCategory(
@@ -55,7 +79,15 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Let friends vote',
         colors: [const Color(0xFFFFF59D), const Color(0xFFFFF176)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const _ComingSoonPage(title: 'Start a Poll')));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Start a Poll',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
       _ForumCategory(
@@ -63,7 +95,15 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Demos & photos',
         colors: [const Color(0xFFD1C4E9), const Color(0xFFB39DDB)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const _ComingSoonPage(title: 'Show & Tell')));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Show & Tell',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
       _ForumCategory(
@@ -71,7 +111,15 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Stuck? Ask here',
         colors: [const Color(0xFFFFCCBC), const Color(0xFFFFAB91)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const _ComingSoonPage(title: 'Help Requests')));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Help Requests',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
       _ForumCategory(
@@ -79,7 +127,15 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Little hacks',
         colors: [const Color(0xFFCFD8DC), const Color(0xFFB0BEC5)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const _ComingSoonPage(title: 'Tips & Tricks')));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Tips & Tricks',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
       _ForumCategory(
@@ -87,11 +143,18 @@ class _InteractiveLandingPageState extends State<InteractiveLandingPage> {
         subtitle: 'Weekly fun tasks',
         colors: [const Color(0xFFB2EBF2), const Color(0xFF80DEEA)],
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const _ComingSoonPage(title: 'Challenges')));
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const InteractivePage(
+                initialLabel: 'Challenges',
+                autoCompose: true,
+              ),
+            ),
+          );
         },
       ),
     ];
-
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FF),
       appBar: PreferredSize(

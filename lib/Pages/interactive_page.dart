@@ -10,7 +10,14 @@ import 'package:mobile_app_2/Pages/profile_page.dart';
 import 'course_page.dart';
 
 class InteractivePage extends StatefulWidget {
-  const InteractivePage({super.key});
+  const InteractivePage({
+    super.key,
+    this.initialLabel,
+    this.autoCompose = false,
+  });
+
+  final String? initialLabel;   // e.g., "Ask Questions"
+  final bool autoCompose;       // open composer immediately
 
   @override
   State<InteractivePage> createState() => _InteractivePageState();
@@ -18,11 +25,192 @@ class InteractivePage extends StatefulWidget {
 
 class _InteractivePageState extends State<InteractivePage> {
   Map<String, dynamic>? _userData;
-
+  static const List<String> _baseCategories = [
+    'Ask Questions',
+    'Post Achievements',
+    'Share Resources',
+    'Start a Poll',
+    'Show & Tell',
+    'Help Requests',
+    'Tips & Tricks',
+    'Challenges',
+    'Other…', // keeps a custom option at the end
+  ];
   @override
   void initState() {
     super.initState();
     _loadUserData();
+
+    if (widget.autoCompose) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openCommentComposer(defaultLabel: widget.initialLabel ?? '');
+      });
+    }
+  }
+  void _openCommentComposer({String? defaultLabel}) {
+    final textCtrl        = TextEditingController();
+    final customLabelCtrl = TextEditingController();
+    final formKey         = GlobalKey<FormState>();
+
+    // Build categories and preselect the passed label if any
+    final List<String> categories = List.of(_baseCategories);
+    String? selectedLabel =
+    (defaultLabel != null && defaultLabel.trim().isNotEmpty)
+        ? defaultLabel.trim()
+        : null;
+
+    // If the default label isn't one of the base ones, insert it so it's selectable
+    if (selectedLabel != null && !categories.contains(selectedLabel)) {
+      categories.insert(0, selectedLabel);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final inset = MediaQuery.of(ctx).viewInsets.bottom;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + inset),
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Post a Comment',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.roboto(
+                          textStyle: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Category dropdown
+                      DropdownButtonFormField<String>(
+                        value: selectedLabel,
+                        items: categories
+                            .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(c),
+                        ))
+                            .toList(),
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (val) => setModalState(() {
+                          selectedLabel = val;
+                        }),
+                        validator: (v) =>
+                        (v == null || v.trim().isEmpty)
+                            ? 'Please choose a category'
+                            : null,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Custom category input (only when "Other…" selected)
+                      if (selectedLabel == 'Other…') ...[
+                        TextFormField(
+                          controller: customLabelCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Custom category',
+                            hintText: 'e.g., Off-topic, Announcements',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Enter a category'
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // Comment body
+                      TextFormField(
+                        controller: textCtrl,
+                        minLines: 3,
+                        maxLines: 8,
+                        decoration: const InputDecoration(
+                          labelText: 'Your comment',
+                          hintText: 'Type your question or comment…',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Please enter a comment'
+                            : null,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Post button -> write to "posts" so it appears in your feed
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.send),
+                        label: const Text('Post'),
+                        onPressed: () async {
+                          if (!formKey.currentState!.validate()) return;
+
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user == null) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please sign in to post')),
+                              );
+                            }
+                            return;
+                          }
+
+                          final finalLabel = (selectedLabel == 'Other…')
+                              ? customLabelCtrl.text.trim()
+                              : (selectedLabel ?? '').trim();
+
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('posts')
+                                .add({
+                              'uid': user.uid,
+                              'userName': user.displayName ?? (_userData?['name'] ?? 'Anonymous'),
+                              'title': finalLabel,                // category saved as title
+                              'content': textCtrl.text.trim(),    // comment body
+                              'likes': 0,
+                              'likedBy': <String>[],
+                              'comments': 0,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+
+                            if (context.mounted) {
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Posted to "$finalLabel"')),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _loadUserData() async {
@@ -92,7 +280,7 @@ class _InteractivePageState extends State<InteractivePage> {
                 color: Colors.blue[100],
               ),
               child: Text(
-                'Welcome to the Community Page. Post Your Latest Achievements and Share Your Progress.',
+                'Welcome to the Community Page.',
                 style: GoogleFonts.roboto(textStyle: const TextStyle(fontSize: 25)),
               ),
             ),
@@ -100,16 +288,15 @@ class _InteractivePageState extends State<InteractivePage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PostBuilderPage()),
+                onPressed: () => _openCommentComposer(
+                  defaultLabel: widget.initialLabel ?? '',
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue[500],
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                icon: const Icon(Icons.add, color: Colors.white),
-                label: Text('Generate New Post', style: GoogleFonts.roboto(color: Colors.white)),
+                icon: const Icon(Icons.add_comment, color: Colors.white),
+                label: Text('New Comment', style: GoogleFonts.roboto(color: Colors.white)),
               ),
             ),
             const SizedBox(height: 24),

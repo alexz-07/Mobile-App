@@ -25,10 +25,14 @@ class DetailLearningPage extends StatefulWidget {
   @override
   State<DetailLearningPage> createState() => _DetailLearningPageState();
 }
+enum Audience { student, teacher }
 
 class _DetailLearningPageState extends State<DetailLearningPage> {
   late OpenAI openAI;
   bool isLoading = false;
+  Audience audience = Audience.student; // make Student the default
+  String? _lessonDocId;         // Firestore doc id for this lesson
+  bool _loadedFromSaved = false; // for UI hints (optional)
   bool isGeneratingContent = false;
   String? generatedContent;
   Map<String, dynamic>? _userData;
@@ -36,12 +40,18 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
   String? _currentImageUrl;
   int _currentImageIndex = 0;
   bool _isVisualLearner = true;
+  String get _stableId => '${widget.subject.trim()}__${widget.topic.trim()}'
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp(r'^_|_$'), '');
   final firestoreService = FirestoreService();
 
   @override
   void initState(){
     super.initState();
     _initializeOpenAI();
+    _loadExistingLesson();  // ← add this
     _loadUserData();
   }
 
@@ -109,35 +119,135 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
       });
     }
   }
+  Future<void> _saveLessonToFirestore() async {
+    if (generatedContent == null) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final lessonsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('lesson_plans'); // ← same collection as loader
+
+    // Stable ID so we overwrite the same doc each time:
+    final stableId = _lessonDocId ?? _stableId;
+
+    final data = {
+      'subject': widget.subject,
+      'topic': widget.topic,
+      'description': widget.topicDescription,
+      'content': generatedContent,
+      'images': _generatedImages ?? [],
+      'isVisualLearner': _isVisualLearner,
+      'updatedAt': FieldValue.serverTimestamp(),
+      // only set createdAt once
+    };
+
+    // If it’s a brand new doc, also set createdAt:
+    if (_lessonDocId == null) {
+      data['createdAt'] = FieldValue.serverTimestamp();
+    }
+
+    await lessonsRef.doc(stableId).set(data, SetOptions(merge: true));
+
+    setState(() => _lessonDocId = stableId);
+  }
+
+  Future<void> _loadExistingLesson() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => isLoading = true);
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('lesson_plans')
+          .doc(_stableId)             // direct doc read by stable id
+          .get();
+
+      if (!mounted) return;
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        final imgs = data['images'];
+        final List<String> images = (imgs is List)
+            ? imgs.map((e) => e.toString()).toList()
+            : <String>[];
+
+        setState(() {
+          _lessonDocId      = doc.id;
+          generatedContent  = data['content'] as String?;
+          _generatedImages  = images;
+          _isVisualLearner  = (data['isVisualLearner'] as bool?) ?? _isVisualLearner;
+
+          _currentImageIndex = 0;
+          _currentImageUrl   = images.isNotEmpty ? images.first : null;
+          _loadedFromSaved   = true; // show chip because we loaded from storage
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Loaded saved lesson')),
+        );
+      } else {
+        // Prepare stable id for first-time save
+        setState(() => _lessonDocId = _stableId);
+      }
+    } catch (e) {
+      debugPrint('Load existing lesson error: $e');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
 
   String buildTextPrompt() {
-    final age = _userData?['age']?? 8;
-    final learningStyles = _userData?['learningStyles']?? [];
-    final interests = _userData?['interests']?? '';
-    final cognitiveLevel = _userData?['cognitiveLevel']?? [];
+    final age = _userData?['age'] ?? 8;
+    final learningStyles = _userData?['learningStyles'] ?? [];
+    final interests = _userData?['interests'] ?? '';
+    final cognitiveLevel = _userData?['cognitiveLevel'] ?? [];
+
+    if (audience == Audience.student) {
+      // Student-facing version
+      return '''
+You are a friendly tutor speaking to a child.
+
+Age: $age | Subject: ${widget.subject} | Topic: ${widget.topic}
+Interests: $interests | Learning styles: ${learningStyles.join(', ')}
+
+Write a short lesson the child can follow:
+- Simple words, short sentences, encouraging tone
+- Sections: Warm-Up ✅  Learn ⭐  Try It 🎯  Safety 🔒  Cool-Down 🧘  I Can Do This! 💬
+- Use bullet points and tiny steps (1–2 lines each)
+- Include 2–3 choices (picture/words; quiet/with music)
+- Add a tiny “If I feel worried…” box with calming options
+- End with a cheerful wrap-up and a tiny at-home practice idea
+''';
+    }
+
+    // Teacher/coach version (what you had before)
     return '''
-    You're a special needs teacher for young children with autism.
-    Create a comprehensive course for "${widget.topic}" in "${widget.subject}".
-    Age: $age.
-    Learning Styles: ${learningStyles.join(', ')}.
-    Interests: $interests.
-    Cognitive Level: ${cognitiveLevel.join(', ')}.
-    Visual Learner: $_isVisualLearner
-    Topic: ${widget.topic}.
-    Description: ${widget.topicDescription}
-    Requirements:
-    -Use clear simple language (short sentences)
-    -Include positive reinforcement
-    -Include student interests
-    -Include a short summary at the end
-    Format:
-    -Clear heading and sections
-    -Bullet point key concepts
-    -Step by step instructions
-    -Interactive questions and activities
-    Make the course engaging and education, perfectly suited for a child with autism.
-    ${_isVisualLearner? 'a visual learner': 'learning through text'} 
-    ''';
+You're a special needs teacher for young children with autism.
+Create a comprehensive course for "${widget.topic}" in "${widget.subject}".
+Age: $age.
+Learning Styles: ${learningStyles.join(', ')}.
+Interests: $interests.
+Cognitive Level: ${cognitiveLevel.join(', ')}.
+Visual Learner: $_isVisualLearner
+Topic: ${widget.topic}.
+Description: ${widget.topicDescription}
+Requirements:
+-Use clear simple language (short sentences)
+-Include positive reinforcement
+-Include student interests
+-Include a short summary at the end
+Format:
+-Clear heading and sections
+-Bullet point key concepts
+-Step by step instructions
+-Interactive questions and activities
+Make the course engaging and education, perfectly suited for a child with autism.
+${_isVisualLearner ? 'a visual learner' : 'learning through text'}
+''';
   }
 
   Future<void> generateImage() async{
@@ -191,57 +301,80 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
     return prompts.toList();
   }
 
-  Future<void> generatePersonalizedContent() async{
-    if (isGeneratingContent) return ;
+  Future<void> generatePersonalizedContent() async {
+    if (isGeneratingContent) return;
+
     setState(() {
       isGeneratingContent = true;
+      _loadedFromSaved = false;
       generatedContent = null;
       _generatedImages = null;
       _currentImageIndex = 0;
     });
+
     try {
+      // Refresh profile so we use the latest values in the prompt
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final data = snap.data();
+        if (data != null) {
+          _userData = data;
+
+          // Be defensive about the type of learningStyles (List vs String vs null)
+          final rawLs = data['learningStyles'];
+          final List<String> learningStyles = rawLs is List
+              ? rawLs.map((e) => e.toString()).toList()
+              : rawLs is String
+              ? [rawLs]
+              : const <String>[];
+
+          _isVisualLearner = learningStyles.contains(
+            'Visual learner (Pictures, diagrams, videos)',
+          );
+        }
+      }
+
+      // Generate
       await generateTextContent();
       if (_isVisualLearner) {
         await generateImage();
       }
-      await firestoreService.saveLearningLesson(
-        widget.subject,
-        widget.topic,
-        generatedContent!,
-        _generatedImages,
-        _isVisualLearner,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Content Has Been Successfully Created!',
-            style: GoogleFonts.roboto(
-              textStyle: TextStyle(
-                fontSize: 30
-              )
-            ),
-          ),
-          backgroundColor: Colors.blue[200],
-        )
-      );
-    } catch(e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error: $e',
-              style: GoogleFonts.roboto(
-                  textStyle: TextStyle(
-                      fontSize: 30
-                  )
-              ),
-            ),
-            backgroundColor: Colors.blue[100],
-          )
-      );
+
+      // Save (pick the one you use)
+      // Option A: your existing service (adds a new doc)
+      //await firestoreService.saveLearningLesson(
+      //  widget.subject,
+      //  widget.topic,
+      //  generatedContent!,
+      //  _generatedImages,
+      //  _isVisualLearner,
+      //);
+
+      // Option B: if you wrote an upsert helper, call it instead:
+      await _saveLessonToFirestore();
+
+      if (mounted) {
+        // If you use a “Saved” chip:
+        //setState(() => _loadedFromSaved = true);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Content saved.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
-      setState(() {
-        isGeneratingContent = false;
-      });
+      if (mounted) {
+        setState(() => isGeneratingContent = false);
+      }
     }
   }
 
@@ -447,6 +580,25 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
                 padding: const EdgeInsets.all(10.0),
                 child: Column(
                   children: [
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Student'),
+                          selected: audience == Audience.student,
+                          onSelected: (_) => setState(() => audience = Audience.student),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Teacher / Parent'),
+                          selected: audience == Audience.teacher,
+                          onSelected: (_) => setState(() => audience = Audience.teacher),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
                     Text(
                       widget.subject,
                       style: GoogleFonts.roboto(
@@ -504,9 +656,13 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
                     Icons.auto_awesome
                   ),
                   label: Text(
-                    isGeneratingContent? 'Creating Your Lessons': 'Create Personalized Lesson'
+                    isGeneratingContent
+                        ? 'Creating Your Lessons'
+                        : (audience == Audience.student
+                        ? 'Create Student Lesson'
+                        : 'Create Teacher Lesson'),
                   ),
-                  style: ElevatedButton.styleFrom(
+                 style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.all(10),
                     elevation: 3,
                     foregroundColor: Colors.black,
@@ -550,6 +706,26 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
                 ),
               )
             ],
+            // ADD THE SAVED CHIP RIGHT HERE
+            if (_loadedFromSaved && !isGeneratingContent && generatedContent != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Chip(
+                    avatar: const Icon(Icons.check, size: 18, color: Colors.white),
+                    label: const Text('Saved lesson loaded',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    backgroundColor: Colors.green,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            const SizedBox(height: 20),
+
             if (generatedContent != null)...[
               _buildContentSection(),
               SizedBox(
