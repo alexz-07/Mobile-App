@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:chat_gpt_sdk/chat_gpt_sdk.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
 
 class AvatarsPage extends StatefulWidget {
   const AvatarsPage({super.key});
@@ -58,6 +60,31 @@ class _AvatarsPageState extends State<AvatarsPage> with SingleTickerProviderStat
   }
 
   // -------- Firestore helpers --------
+  Future<void> _persistAvatar(String remoteUrl) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      setState(() => _generating = true);
+
+      // download the OpenAI image
+      final bytes = await http.readBytes(Uri.parse(remoteUrl));
+
+      // upload to Firebase Storage (one file per user)
+      final ref = FirebaseStorage.instance.ref('avatars/${user.uid}.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+
+      // get durable URL and save to Firestore (your existing method)
+      final downloadUrl = await ref.getDownloadURL();
+      await _saveAvatarUrl(downloadUrl); // <-- you already have this
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Saving avatar failed: $e')));
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
 
   Future<void> _loadFromFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -157,14 +184,20 @@ class _AvatarsPageState extends State<AvatarsPage> with SingleTickerProviderStat
 
   String _buildImagePrompt() {
     final acc = _accessories.where((a) => a != 'None').toList();
-    final ponytailHint = _hairStyle == 'Ponytail'
-        ? ' (pony tail high and clearly visible behind the head)'
-        : '';
+    final ponytailHint =
+    _hairStyle == 'Ponytail' ? ' (high ponytail clearly visible)' : '';
 
     return '''
-Cute, colorful **cartoon avatar** of a child — **full bust portrait** (head, neck, shoulders and upper chest visible). 
-Centered composition with soft pastel background and **ample margins**; **do not crop or do extreme close-ups**.
+Render a SINGLE cartoon avatar portrait.
 
+REQUIREMENTS — MUST follow all:
+• Exactly ONE child/subject. One head, one body. No duplicates, no tiny versions, no thumbnails.
+• Close-up **bust portrait** (head + top of shoulders), centered.
+• Square image. Subject fills ~70–85% of the canvas.
+• Background is a plain, empty **pastel gradient** only — NO boxes, panels, frames, badges, stickers, UI, borders, grids, collage, character sheet, reference sheet, before/after, or picture-in-picture.
+• No text or watermarks.
+
+Appearance:
 - Gender: $_gender
 - Hair style: $_hairStyle$ponytailHint
 - Hair color: $_hairColor
@@ -172,10 +205,9 @@ Centered composition with soft pastel background and **ample margins**; **do not
 - Skin tone: $_skinTone
 - Clothing: $_clothingStyle
 - Expression: $_expression
-- Accessories: ${acc.isEmpty ? 'none' : acc.join(', ')} (make accessories clearly visible)
+- Accessories: ${acc.isEmpty ? 'none' : acc.join(', ')}
 
-Style: kid-friendly, big friendly eyes, clean outlines.
-Rules: no text, no watermark, no logos.
+Style: kid-friendly illustration with big friendly eyes, clean outlines, soft shading.
 ''';
   }
 
@@ -464,8 +496,7 @@ Rules: no text, no watermark, no logos.
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _previewUrl == null ? null : () => _saveAvatarUrl(_previewUrl!),
-                    icon: const Icon(Icons.check_circle_outline),
+                    onPressed: _previewUrl == null ? null : () => _persistAvatar(_previewUrl!),                    icon: const Icon(Icons.check_circle_outline),
                     label: const Text('Use This Avatar'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF34C759),

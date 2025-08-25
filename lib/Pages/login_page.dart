@@ -14,74 +14,142 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  void signUserIn() async{
+  // NEW: used in the reset dialog (prefilled from emailController)
+  final _resetEmailCtrl = TextEditingController();
+
+  void signUserIn() async {
     if (!_formKey.currentState!.validate()) return;
 
-    try{
-      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
-      final user = userCredential.user;
-      if (user != null && !user.emailVerified){
-        await FirebaseAuth.instance.signOut();
-        showDialog(
+      final user = cred.user;
+      if (user == null) return;
+
+      await user.reload(); // refresh status just in case
+
+      if (!user.emailVerified) {
+        if (!mounted) return;
+        await showDialog(
           context: context,
-          builder: (context)=>AlertDialog(
-            title: Text(
-              'Verify Your Account',
-              style: GoogleFonts.roboto(
-                  textStyle: TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold
-                  )
-              ),
-            ),
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Verify your email'),
             content: Text(
-              'We sent an email verification. Please fill that out to continue.',
-              style:  GoogleFonts.roboto(
-                  textStyle: TextStyle(
-                    fontSize: 30,
-                  )
-              ),
+              'We sent a verification link to ${user.email}. '
+                  'Please tap the link, then come back and press "I’ve verified".',
             ),
             actions: [
               TextButton(
-                child: Text(
-                  'Return to Login',
-                  style: GoogleFonts.roboto(
-                      textStyle: TextStyle(
-                          fontSize: 25
-                      )
-                  ),
-                ),
-                onPressed: (){
-                  Navigator.pop(context);
+                child: const Text('Resend email'),
+                onPressed: () async {
+                  try {
+                    await user.sendEmailVerification();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Verification email sent.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to resend: $e')),
+                      );
+                    }
+                  }
                 },
-              )
+              ),
+              ElevatedButton(
+                child: const Text("I've verified"),
+                onPressed: () async {
+                  await user.reload();
+                  final refreshed = FirebaseAuth.instance.currentUser!;
+                  if (refreshed.emailVerified) {
+                    if (context.mounted) Navigator.of(context).pop(); // close dialog
+                    if (context.mounted) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HomePage()),
+                      );
+                    }
+                  } else {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Still not verified. Check your inbox.')),
+                      );
+                    }
+                  }
+                },
+              ),
             ],
-          )
+          ),
         );
+
+        // IMPORTANT: stop here so we don't navigate to HomePage yet
+        return;
       }
-      if (mounted) {
-        Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => HomePage()),
-        );
-      }
-    }
-    on FirebaseAuthException catch (e) {
+
+      // Verified → proceed to app
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+      );
+    } on FirebaseAuthException catch (e) {
       showErrorMsg(e.code);
     }
   }
 
-  void showErrorMsg(String message){
+  // NEW: forgot password flow
+  Future<void> _showResetDialog() async {
+    _resetEmailCtrl.text = emailController.text.trim();
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Reset password', style: GoogleFonts.roboto()),
+        content: TextField(
+          controller: _resetEmailCtrl,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Email'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final email = _resetEmailCtrl.text.trim();
+              Navigator.pop(context);
+              try {
+                await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Password reset email sent. Check your inbox.')),
+                );
+              } on FirebaseAuthException catch (e) {
+                final msg = {
+                  'invalid-email': 'That email address looks wrong.',
+                  'user-not-found': 'No user found with that email.',
+                }[e.code] ??
+                    'Could not send reset email: ${e.code}';
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              }
+            },
+            child: const Text('Send email'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showErrorMsg(String message) {
     showDialog(
       context: context,
       builder: (context) {
@@ -91,14 +159,12 @@ class _LoginPageState extends State<LoginPage> {
             child: Text(
               message,
               style: GoogleFonts.roboto(
-                textStyle: TextStyle(
-                  color: Colors.white
-                )
-              )
-            )
-          )
+                textStyle: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
         );
-      }
+      },
     );
   }
 
@@ -113,70 +179,58 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
                 Text(
                   'Welcome Back!',
                   style: GoogleFonts.roboto(
-                    textStyle: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.normal
-                    )
+                    textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.normal),
                   ),
                 ),
-                SizedBox(
-                  height: 25,
-                ),
+                const SizedBox(height: 25),
                 Text(
                   'Sign In to Continue',
                   style: GoogleFonts.roboto(
-                      textStyle: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold
-                      )
+                    textStyle: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
                   ),
                 ),
-                SizedBox(
-                  height: 25
-                ),
+                const SizedBox(height: 25),
                 MyTextfield(
                   controller: emailController,
                   hintText: 'Email',
                   obscureText: false,
-                  validator: (value){
-                    if(value==null || value.isEmpty){
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
                       return 'Please Enter an Email';
                     }
                     return null;
                   },
                 ),
-                SizedBox(
-                  height: 25,
-                ),
+                const SizedBox(height: 25),
                 MyTextfield(
                   controller: passwordController,
                   hintText: 'Password',
                   obscureText: true,
-                  validator: (value){
-                    if(value==null || value.isEmpty){
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
                       return 'Please Enter a Password';
                     }
                     return null;
                   },
                 ),
-                SizedBox(
-                  height: 25,
+
+                // NEW: "Forgot password?" link
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _showResetDialog,
+                    child: Text('Forgot password?', style: GoogleFonts.roboto()),
+                  ),
                 ),
-                MyButton(
-                  text: 'Sign In',
-                  onTap: (){
-                    signUserIn();
-                  }
-                ),
-                SizedBox(
-                  height: 25,
-                ),
+
+                const SizedBox(height: 10),
+                MyButton(text: 'Sign In', onTap: signUserIn),
+                const SizedBox(height: 25),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -186,18 +240,16 @@ class _LoginPageState extends State<LoginPage> {
                         textStyle: TextStyle(
                           color: Colors.grey[700],
                           fontWeight: FontWeight.bold,
-                          fontSize: 16
-                        )
-                      )
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
-                    SizedBox(
-                      width: 15,
-                    ),
+                    const SizedBox(width: 15),
                     TextButton(
-                      onPressed: (){
+                      onPressed: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (context) => RegisterPage())
+                          MaterialPageRoute(builder: (context) => const RegisterPage()),
                         );
                       },
                       child: Text(
@@ -206,18 +258,18 @@ class _LoginPageState extends State<LoginPage> {
                           textStyle: TextStyle(
                             color: Colors.blue[700],
                             fontWeight: FontWeight.bold,
-                            fontSize: 16
-                          )
-                        )
-                      )
-                    )
-                  ]
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 )
               ],
-            )
-          )
-        )
-      )
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

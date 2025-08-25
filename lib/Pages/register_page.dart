@@ -277,7 +277,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                                'Not a member?',
+                                'Already have an account?',
                                 style: GoogleFonts.roboto(
                                     textStyle: TextStyle(
                                         color: Colors.grey[700],
@@ -297,7 +297,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                   );
                                 },
                                 child: Text(
-                                    'Register Now!',
+                                    'Sign in',
                                     style: GoogleFonts.roboto(
                                         textStyle: TextStyle(
                                             color: Colors.blue[700],

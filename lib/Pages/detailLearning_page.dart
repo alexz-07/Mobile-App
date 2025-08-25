@@ -1,4 +1,4 @@
-import 'dart:ffi';
+
 
 import 'package:chat_gpt_sdk/chat_gpt_sdk.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -201,52 +201,66 @@ class _DetailLearningPageState extends State<DetailLearningPage> {
   }
 
   String buildTextPrompt() {
-    final age = _userData?['age'] ?? 8;
-    final learningStyles = _userData?['learningStyles'] ?? [];
-    final interests = _userData?['interests'] ?? '';
-    final cognitiveLevel = _userData?['cognitiveLevel'] ?? [];
+    final age             = _userData?['age'] ?? 8;
+    final learningStyles  = (_userData?['learningStyles']  as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    final supportNeeds    = (_userData?['supportNeeds']    as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    final cognitiveLevel  = (_userData?['cognitiveLevel']  as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    final interests       = (_userData?['interests'] ?? '').toString();
 
     if (audience == Audience.student) {
       // Student-facing version
       return '''
 You are a friendly tutor speaking to a child.
 
-Age: $age | Subject: ${widget.subject} | Topic: ${widget.topic}
-Interests: $interests | Learning styles: ${learningStyles.join(', ')}
+Age: $age
+Subject: ${widget.subject}
+Topic: ${widget.topic}
+Interests: $interests
+Learning styles: ${learningStyles.join(', ')}
+Cognitive level: ${cognitiveLevel.join(', ')}
+Support needs: ${supportNeeds.join(', ')}
 
 Write a short lesson the child can follow:
 - Simple words, short sentences, encouraging tone
 - Sections: Warm-Up ✅  Learn ⭐  Try It 🎯  Safety 🔒  Cool-Down 🧘  I Can Do This! 💬
 - Use bullet points and tiny steps (1–2 lines each)
-- Include 2–3 choices (picture/words; quiet/with music)
+- Offer 2–3 choices (picture/words; quiet/with music)
+- Respect the support needs above (e.g., low-stimulation visuals if sensory-friendly, predictable steps if structured routine, extra repetition if repetitive practice)
+- Scaffold based on the cognitive level listed
 - Add a tiny “If I feel worried…” box with calming options
 - End with a cheerful wrap-up and a tiny at-home practice idea
 ''';
     }
 
-    // Teacher/coach version (what you had before)
+    // Teacher/parent-facing plan
     return '''
-You're a special needs teacher for young children with autism.
-Create a comprehensive course for "${widget.topic}" in "${widget.subject}".
-Age: $age.
-Learning Styles: ${learningStyles.join(', ')}.
-Interests: $interests.
-Cognitive Level: ${cognitiveLevel.join(', ')}.
+You're a special-needs educator designing a plan for a young learner.
+
+Subject: ${widget.subject}
+Topic: ${widget.topic}
+Age: $age
+Learning Styles: ${learningStyles.join(', ')}
+Cognitive Level: ${cognitiveLevel.join(', ')}
+Support Needs: ${supportNeeds.join(', ')}
+Interests: $interests
 Visual Learner: $_isVisualLearner
-Topic: ${widget.topic}.
-Description: ${widget.topicDescription}
-Requirements:
--Use clear simple language (short sentences)
--Include positive reinforcement
--Include student interests
--Include a short summary at the end
+Topic Description: ${widget.topicDescription}
+
+Create a concise, actionable course/lesson plan that:
+- Uses clear, simple language (short sentences)
+- Explicitly differentiates for the cognitive level listed (e.g., pre-symbolic → sensory exploration; concrete → hands-on examples; abstract → simplified analogies)
+- Builds in accommodations from the support needs list (sensory-friendly pacing, predictable routines, repetition, peer interaction options, etc.)
+- Incorporates the learner’s interests to boost engagement
+- Includes sections: Objectives, Materials, Step-by-Step Instruction, Visual/Manipulative Options, Checks for Understanding, Regulation Breaks, Safety, Extension/At-Home Practice
+- Includes 2–3 alternative prompts or scaffolds for common challenges
+- Ends with a brief summary and positive self-talk script
+
 Format:
--Clear heading and sections
--Bullet point key concepts
--Step by step instructions
--Interactive questions and activities
-Make the course engaging and education, perfectly suited for a child with autism.
-${_isVisualLearner ? 'a visual learner' : 'learning through text'}
+- Clear headings
+- Bullet points
+- Step-by-step numbered instructions
+- Short interactive questions/activities
+${_isVisualLearner ? 'Provide occasional cues where a visual could help.' : 'Favor text/verbal scaffolds.'}
 ''';
   }
 
@@ -284,21 +298,21 @@ ${_isVisualLearner ? 'a visual learner' : 'learning through text'}
   }
 
   List<String> buildImagePrompt() {
-    final content = generatedContent?? '';
-    final List<String> prompts = [];
-    final interests = _userData?['interests']?? '';
-    prompts.add(
+    final interests      = (_userData?['interests'] ?? '').toString();
+    final supportNeeds   = (_userData?['supportNeeds']   as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    final cognitiveLevel = (_userData?['cognitiveLevel'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+
+    // Single prompt is fine for now; add more if you want multiple images.
+    return [
       '''
-      Create colorful child-friendly images for "${widget.topic}" in "${widget.subject}".
-      Style:
-      -Cartoonish
-      -Happy
-      -Bright Colors
-      -Include $interests
-      -No texts or words
-      '''
-    );
-    return prompts.toList();
+Create a colorful, child-friendly illustration for "${widget.topic}" in "${widget.subject}".
+Style: cartoonish, happy; ${supportNeeds.contains('Sensory-friendly (Low stimulation environment)') ? 'soft, low-stimulation background, gentle contrast' : 'bright colors and clear shapes'}
+Constraints: NO text or words, no watermarks.
+Incorporate interests when possible: $interests
+Consider cognitive level (${cognitiveLevel.join(', ')}) in visual complexity.
+If routine/structure is important, hint at simple step sequencing in the scene.
+'''
+    ];
   }
 
   Future<void> generatePersonalizedContent() async {
